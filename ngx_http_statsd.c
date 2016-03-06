@@ -33,7 +33,7 @@ typedef ngx_peer_addr_t ngx_statsd_addr_t;
 
 typedef struct {
     ngx_statsd_addr_t         peer_addr;
-    ngx_udp_connection_t      *udp_connection;
+    ngx_resolver_connection_t      *udp_connection;
     ngx_log_t                 *log;
 } ngx_udp_endpoint_t;
 
@@ -60,7 +60,7 @@ typedef struct {
 	ngx_array_t				*stats;
 } ngx_http_statsd_conf_t;
 
-ngx_int_t ngx_udp_connect(ngx_udp_connection_t *uc);
+ngx_int_t ngx_udp_connect(ngx_resolver_connection_t *uc);
 
 static void ngx_statsd_updater_cleanup(void *data);
 static ngx_int_t ngx_http_statsd_udp_send(ngx_udp_endpoint_t *l, u_char *buf, size_t len);
@@ -300,7 +300,7 @@ ngx_http_statsd_handler(ngx_http_request_t *r)
 
 static ngx_int_t ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
     ngx_pool_cleanup_t    *cln;
-    ngx_udp_connection_t  *uc;
+    ngx_resolver_connection_t  *uc;
 
 	ngx_log_debug0(NGX_LOG_DEBUG_HTTP, cf->log, 0,
 			   "statsd: initting endpoint");
@@ -313,7 +313,7 @@ static ngx_int_t ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *en
     cln->handler = ngx_statsd_updater_cleanup;
     cln->data = endpoint;
 
-    uc = ngx_calloc(sizeof(ngx_udp_connection_t), cf->log);
+    uc = ngx_calloc(sizeof(ngx_resolver_connection_t), cf->log);
     if (uc == NULL) {
         return NGX_ERROR;
     }
@@ -338,8 +338,8 @@ ngx_statsd_updater_cleanup(void *data)
                    "cleanup statsd_updater");
 
     if(e->udp_connection) {
-        if(e->udp_connection->connection) {
-            ngx_close_connection(e->udp_connection->connection);
+        if(e->udp_connection->udp) {
+            ngx_close_connection(e->udp_connection->udp);
         }
 
         ngx_free(e->udp_connection);
@@ -354,10 +354,10 @@ static ngx_int_t
 ngx_http_statsd_udp_send(ngx_udp_endpoint_t *l, u_char *buf, size_t len)
 {
     ssize_t                n;
-    ngx_udp_connection_t  *uc;
+    ngx_resolver_connection_t  *uc;
 
     uc = l->udp_connection;
-    if (uc->connection == NULL) {
+    if (uc->udp == NULL) {
 
         uc->log = *l->log;
         uc->log.handler = NULL;
@@ -365,20 +365,20 @@ ngx_http_statsd_udp_send(ngx_udp_endpoint_t *l, u_char *buf, size_t len)
         uc->log.action = "logging";
 
         if(ngx_udp_connect(uc) != NGX_OK) {
-            if(uc->connection != NULL) {
-                ngx_free_connection(uc->connection);
-                uc->connection = NULL;
+            if(uc->udp != NULL) {
+                ngx_free_connection(uc->udp);
+                uc->udp = NULL;
             }
 
             return NGX_ERROR;
         }
 
-        uc->connection->data = l;
-        uc->connection->read->handler = ngx_http_statsd_udp_dummy_handler;
-        uc->connection->read->resolver = 0;
+        uc->udp->data = l;
+        uc->udp->read->handler = ngx_http_statsd_udp_dummy_handler;
+        uc->udp->read->resolver = 0;
     }
 
-    n = ngx_send(uc->connection, buf, len);
+    n = ngx_send(uc->udp, buf, len);
 
     if (n == -1) {
         return NGX_ERROR;
