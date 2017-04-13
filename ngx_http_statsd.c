@@ -13,12 +13,12 @@
 #include <ngx_http.h>
 #include <nginx.h>
 
-#define STATSD_DEFAULT_PORT             8125
+#define STATSD_DEFAULT_PORT     8125
 
-#define STATSD_TYPE_COUNTER 0x0001
-#define STATSD_TYPE_TIMING  0x0002
+#define STATSD_TYPE_COUNTER     0x0001
+#define STATSD_TYPE_TIMING      0x0002
 
-#define STATSD_MAX_STR 256
+#define STATSD_MAX_STR          256
 
 #define ngx_conf_merge_ptr_value(conf, prev, default)                   \
     if (conf == NGX_CONF_UNSET_PTR) {                                   \
@@ -298,7 +298,8 @@ ngx_http_statsd_handler(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-static ngx_int_t ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
+static ngx_int_t
+ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
     ngx_pool_cleanup_t    *cln;
     ngx_resolver_connection_t  *rec;
 
@@ -346,7 +347,8 @@ ngx_statsd_updater_cleanup(void *data)
     }
 }
 
-static void ngx_http_statsd_udp_dummy_handler(ngx_event_t *ev)
+static void
+ngx_http_statsd_udp_dummy_handler(ngx_event_t *ev) 
 {
 }
 
