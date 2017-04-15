@@ -26,9 +26,9 @@
     }
 
 #if defined nginx_version && nginx_version >= 8021
-typedef ngx_addr_t ngx_statsd_addr_t;
+typedef ngx_addr_t ngx_http_statsd_addr_t;
 #else
-typedef ngx_peer_addr_t ngx_statsd_addr_t;
+typedef ngx_peer_addr_t ngx_http_statsd_addr_t;
 #endif
 
 typedef struct {
@@ -40,7 +40,7 @@ typedef struct {
 } ngx_udp_connection_t;
 
 typedef struct {
-    ngx_statsd_addr_t         peer_addr;
+    ngx_http_statsd_addr_t    peer_addr;
     ngx_udp_connection_t     *udp_connection;
     ngx_log_t                *log;
 } ngx_udp_endpoint_t;
@@ -59,7 +59,7 @@ typedef struct {
     ngx_http_complex_value_t *ckey;
     ngx_http_complex_value_t *cmetric;
     ngx_http_complex_value_t *cvalid;
-} ngx_statsd_stat_t;
+} ngx_http_statsd_stat_t;
 
 typedef struct {
     int                       off;
@@ -70,7 +70,7 @@ typedef struct {
 
 static ngx_int_t ngx_udp_connect(ngx_udp_connection_t *uc);
 
-static void ngx_statsd_updater_cleanup(void *data);
+static void ngx_http_statsd_updater_cleanup(void *data);
 static void ngx_http_statsd_udp_dummy_handler(ngx_event_t *ev);
 static ngx_int_t ngx_http_statsd_udp_send(ngx_udp_endpoint_t *l, u_char *buf, size_t len);
 
@@ -243,7 +243,7 @@ ngx_http_statsd_valid_value(ngx_str_t *value)
 };
 
 static ngx_int_t
-ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
+ngx_http_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
     ngx_pool_cleanup_t    *cln;
     ngx_udp_connection_t  *uc;
 
@@ -255,7 +255,7 @@ ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
         return NGX_ERROR;
     }
 
-    cln->handler = ngx_statsd_updater_cleanup;
+    cln->handler = ngx_http_statsd_updater_cleanup;
     cln->data = endpoint;
 
     uc = ngx_calloc(sizeof(ngx_udp_connection_t), cf->log);
@@ -275,7 +275,7 @@ ngx_statsd_init_endpoint(ngx_conf_t *cf, ngx_udp_endpoint_t *endpoint) {
 }
 
 static void
-ngx_statsd_updater_cleanup(void *data)
+ngx_http_statsd_updater_cleanup(void *data)
 {
     ngx_udp_endpoint_t  *e = data;
 
@@ -460,9 +460,9 @@ ngx_http_statsd_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_http_statsd_conf_t *prev = parent;
     ngx_http_statsd_conf_t *conf = child;
-    ngx_statsd_stat_t *stat;
-    ngx_statsd_stat_t prev_stat;
-    ngx_statsd_stat_t       *prev_stats;
+    ngx_http_statsd_stat_t *stat;
+    ngx_http_statsd_stat_t prev_stat;
+    ngx_http_statsd_stat_t       *prev_stats;
     ngx_uint_t              i;
     ngx_uint_t              sz;
 
@@ -472,7 +472,8 @@ ngx_http_statsd_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (conf->stats == NULL) {
         sz = (prev->stats != NULL ? prev->stats->nelts : 2);
-        conf->stats = ngx_array_create(cf->pool, sz, sizeof(ngx_statsd_stat_t));
+        conf->stats = ngx_array_create(cf->pool, sz,
+                                       sizeof(ngx_http_statsd_stat_t));
         if (conf->stats == NULL) {
             return NGX_CONF_ERROR;
         }
@@ -481,7 +482,7 @@ ngx_http_statsd_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         prev_stats = prev->stats->elts;
         for (i = 0; i < prev->stats->nelts; i++) {
             stat = ngx_array_push(conf->stats);
-            ngx_memzero(stat, sizeof(ngx_statsd_stat_t));
+            ngx_memzero(stat, sizeof(ngx_http_statsd_stat_t));
 
             prev_stat = prev_stats[i];
 
@@ -499,7 +500,7 @@ ngx_http_statsd_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 }
 
 static ngx_udp_endpoint_t *
-ngx_http_statsd_add_endpoint(ngx_conf_t *cf, ngx_statsd_addr_t *peer_addr)
+ngx_http_statsd_add_endpoint(ngx_conf_t *cf, ngx_http_statsd_addr_t *peer_addr)
 {
     ngx_http_statsd_main_conf_t    *umcf;
     ngx_udp_endpoint_t             *endpoint;
@@ -559,15 +560,15 @@ ngx_http_statsd_set_server(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 static char *
 ngx_http_statsd_add_stat(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, ngx_uint_t type) {
-    ngx_http_statsd_conf_t              *ulcf = conf;
+    ngx_http_statsd_conf_t             *ulcf = conf;
     ngx_http_complex_value_t            key_cv;
     ngx_http_compile_complex_value_t    key_ccv;
     ngx_http_complex_value_t            metric_cv;
     ngx_http_compile_complex_value_t    metric_ccv;
     ngx_http_complex_value_t            valid_cv;
     ngx_http_compile_complex_value_t    valid_ccv;
-    ngx_str_t                           *value;
-    ngx_statsd_stat_t                   *stat;
+    ngx_str_t                          *value;
+    ngx_http_statsd_stat_t             *stat;
     ngx_int_t                           n;
     ngx_str_t                           s;
     ngx_flag_t                          b;
@@ -575,7 +576,8 @@ ngx_http_statsd_add_stat(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, ngx_uin
     value = cf->args->elts;
 
     if (ulcf->stats == NULL) {
-        ulcf->stats = ngx_array_create(cf->pool, 10, sizeof(ngx_statsd_stat_t));
+        ulcf->stats = ngx_array_create(cf->pool, 10,
+                                       sizeof(ngx_http_statsd_stat_t));
         if (ulcf->stats == NULL) {
             return NGX_CONF_ERROR;
         }
@@ -586,7 +588,7 @@ ngx_http_statsd_add_stat(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, ngx_uin
         return NGX_CONF_ERROR;
     }
 
-    ngx_memzero(stat, sizeof(ngx_statsd_stat_t));
+    ngx_memzero(stat, sizeof(ngx_http_statsd_stat_t));
 
     stat->type = type;
     stat->valid = 1;
@@ -695,7 +697,7 @@ ngx_http_statsd_init(ngx_conf_t *cf)
     if(umcf->endpoints != NULL) {
         e = umcf->endpoints->elts;
         for(i = 0;i < umcf->endpoints->nelts;i++) {
-            rc = ngx_statsd_init_endpoint(cf, e + i);
+            rc = ngx_http_statsd_init_endpoint(cf, e + i);
 
             if(rc != NGX_OK) {
                 return NGX_ERROR;
@@ -721,8 +723,8 @@ ngx_http_statsd_handler(ngx_http_request_t *r)
     u_char                    line[STATSD_MAX_STR], *p;
     const char *              metric_type;
     ngx_http_statsd_conf_t   *ulcf;
-    ngx_statsd_stat_t        *stats;
-    ngx_statsd_stat_t         stat;
+    ngx_http_statsd_stat_t   *stats;
+    ngx_http_statsd_stat_t    stat;
     ngx_uint_t                c;
     ngx_uint_t                n;
     ngx_str_t                 s;
