@@ -384,9 +384,8 @@ failed:
 }
 
 static ngx_int_t
-ngx_http_statsd_udp_send(ngx_http_statsd_endpoint_t *l, u_char *buf, size_t len)
+ngx_http_statsd_udp_send(ngx_http_statsd_endpoint_t *l, u_char *buf, size_t size)
 {
-    ssize_t                n;
     ngx_http_statsd_connection_t  *uc;
 
     uc = l->udp_connection;
@@ -411,22 +410,7 @@ ngx_http_statsd_udp_send(ngx_http_statsd_endpoint_t *l, u_char *buf, size_t len)
         uc->udp->read->resolver = 0;
     }
 
-    n = ngx_send(uc->udp, buf, len);
-
-    if (n == -1) {
-        return NGX_ERROR;
-    }
-
-    if ((size_t) n != (size_t) len) {
-#if defined nginx_version && nginx_version >= 8032
-        ngx_log_error(NGX_LOG_CRIT, &uc->log, 0, "send() incomplete");
-#else
-        ngx_log_error(NGX_LOG_CRIT, uc->log, 0, "send() incomplete");
-#endif
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
+    return ngx_udp_send(uc->udp, buf, size);
 }
 
 static void *
